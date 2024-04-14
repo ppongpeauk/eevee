@@ -7,7 +7,7 @@ import numpy as np
 
 MATRIX_WIDTH = 32
 MATRIX_HEIGHT = 32
-PIXEL_SIZE = 8
+PIXEL_SIZE = 16
 
 
 class LEDMatrixSimulator:
@@ -48,22 +48,29 @@ class LEDMatrixSimulator:
         while True:
             # Get the eye image from the detector
             result = self.detector.detect(eye_type=self.eye_type)
-            pixels = result.flatten().tolist()
-            self.draw_pixels(pixels)
+            if result is not None:
+                pixels = result.flatten().tolist()
+                self.draw_pixels(pixels)
 
 
 async def main():
     dpg.create_context()
-    dpg.create_viewport(title="LED Matrix Simulator", width=800, height=600)
+    dpg.create_viewport(
+        title="LED Matrix Simulator",
+        width=(MATRIX_WIDTH * PIXEL_SIZE * 2) + 32,
+        height=MATRIX_HEIGHT * PIXEL_SIZE,
+        resizable=False,
+    )
 
     left_simulator = LEDMatrixSimulator(eye_type="left")
     right_simulator = LEDMatrixSimulator(eye_type="right")
 
     with dpg.theme() as global_theme:
         with dpg.theme_component(dpg.mvAll):
+            # column spacing
             dpg.add_theme_color(dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 0))
 
-    with dpg.window(label="Left Eye"):
+    with dpg.window(label="eye_left"):
         for row in range(left_simulator.height):
             with dpg.group(horizontal=True):
                 for col in range(left_simulator.width):
@@ -75,7 +82,7 @@ async def main():
                         tag=f"pixel_{row}_{col}_left",
                     )
 
-    with dpg.window(label="Right Eye", pos=(384, 0)):
+    with dpg.window(label="eye_right", pos=((MATRIX_HEIGHT * PIXEL_SIZE) + 16, 0)):
         for row in range(right_simulator.height):
             with dpg.group(horizontal=True):
                 for col in range(right_simulator.width):
@@ -90,6 +97,7 @@ async def main():
     dpg.bind_theme(global_theme)
     dpg.setup_dearpygui()
     dpg.show_viewport()
+    # dpg.show_style_editor()
 
     th.Thread(target=left_simulator.update).start()
     th.Thread(target=right_simulator.update).start()

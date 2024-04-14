@@ -71,22 +71,19 @@ MATRIX_HEIGHT = 32
 
 class Detector:
     def __init__(self):
+        self.prev_landmarks = {}
         self.cam = cv2.VideoCapture(3)
         self.landmarker = FaceLandmarker.create_from_options(options)
-
-    def stretch_eye_landmarks(self, eye_landmarks):
-        # TODO: implement this function
-        return eye_matrix
 
     def detect(self, eye_type):
         _, img = self.cam.read()
 
         timestamp = cv2.getTickCount()
         # resize the image
-        img = cv2.resize(img, None, fx=0.25, fy=0.25, interpolation=cv2.INTER_AREA)
-
-        # flip the image
+        img = cv2.resize(img, None, fx=1, fy=1, interpolation=cv2.INTER_AREA)
         img = cv2.flip(img, 1)
+
+        self.frame_shape = (img.shape[0], img.shape[1])
 
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=img)
         detection_result = self.landmarker.detect(mp_image)
@@ -105,12 +102,16 @@ class Detector:
             if len(detection_result.face_landmarks) == 0:
                 continue
             landmark = detection_result.face_landmarks[0][id]
-            x = int(landmark.x * MATRIX_WIDTH)
-            y = int(landmark.y * MATRIX_HEIGHT)
-            eye_landmarks.append((x, y))
+            x = landmark.x * (self.frame_shape[1] / 4)
+            y = landmark.y * (self.frame_shape[0] / 4)
 
-        # stretch out the eye landmarks to fill the matrix
-        eye_matrix = self.stretch_eye_landmarks(eye_landmarks)
+            # reduce jittering
+            if id in self.prev_landmarks:
+                prev_x, prev_y = self.prev_landmarks[id]
+                x = (x + prev_x) / 2
+                y = (y + prev_y) / 2
+
+            eye_landmarks.append((x, y))
 
         if len(eye_landmarks) == 0:
             return eye_matrix
@@ -140,5 +141,10 @@ class Detector:
 
         # draw the centered landmarks on the matrix
         cv2.fillPoly(eye_matrix, [centered_eye_contour], 1)
+
+        # store the landmarks for the next frame
+        self.prev_landmarks = {
+            id: (x, y) for id, (x, y) in zip(eye_connection, eye_landmarks)
+        }
 
         return eye_matrix
